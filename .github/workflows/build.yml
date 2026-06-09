@@ -1,0 +1,42 @@
+name: Build GKI Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git make bc bison flex libssl-dev libelf-dev
+
+      - name: Clone ACK
+        run: |
+          git clone --depth=1 -b common-android14-6.6 https://android.googlesource.com/kernel/common kernel
+
+      - name: Add KernelSU Next
+        run: |
+          cd kernel
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+
+      - name: Patch SuSFS
+        run: |
+          cd kernel
+          git clone https://gitlab.com/simonpunk/susfs4ksu.git
+          patch -p1 < susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.6.patch
+
+      - name: Build Kernel
+        run: |
+          cd kernel
+          LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: kernel-output
+          path: kernel/out/android14-6.6/dist/
